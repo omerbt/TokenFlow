@@ -31,11 +31,4 @@ For more see the [project webpage](https://diffusion-tokenflow.github.io).
 
 
 ## Citation
-```
-@article{bar2023multidiffusion,
-  title={TokenFlow: Consistent Diffusion Features for Consistent Video Editing},
-  author={Geyer, Michal and Bar-Tal, Omer and Bagon, Shai and Dekel, Tali},
-  journal={arXiv preprint arXiv},
-  year={2023}
-}
-```
+
