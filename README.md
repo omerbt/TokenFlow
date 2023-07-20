@@ -11,7 +11,10 @@
 
 [//]: # ([![Hugging Face Spaces]&#40;https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue&#41;]&#40;https://huggingface.co/spaces/weizmannscience/text2live&#41;)
 
-https://github.com/omerbt/TokenFlow/assets/52277000/8d4e52b6-4cc9-44ca-8f02-80060d13edea
+
+
+https://github.com/omerbt/TokenFlow/assets/52277000/06080ac3-e1fc-42df-852f-c6c49bfa16eb
+
 
 **TokenFlow** is a framework that enables consistent video editing, using a pre-trained text-to-image diffusion model, without any further training or finetuning.
 
