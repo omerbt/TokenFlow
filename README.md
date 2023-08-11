@@ -13,7 +13,8 @@
 
 
 
-https://github.com/omerbt/TokenFlow/assets/52277000/06080ac3-e1fc-42df-852f-c6c49bfa16eb
+
+https://github.com/omerbt/TokenFlow/assets/52277000/93dccd63-7e9a-4540-a941-31962361b0bb
 
 
 **TokenFlow** is a framework that enables consistent video editing, using a pre-trained text-to-image diffusion model, without any further training or finetuning.
