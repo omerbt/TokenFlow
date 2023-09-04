@@ -1,0 +1,22 @@
+# general
+seed: 1
+device: 'cuda'
+output_path: 'tokenflow-results'
+
+# data
+data_path: 'wolf-part'
+latents_path: 'latents' # should be the same as 'save_dir' arg used in preprocess
+n_inversion_steps: 100 # for retrieving the latents of the inversion
+n_frames: 40
+
+# diffusion
+sd_version: '2.1'
+guidance_scale: 7.5
+n_timesteps: 50
+prompt: a shiny silver robotic wolf
+negative_prompt: "ugly, blurry, low res, unrealistic, unaesthetic"
+batch_size: 8
+
+# SDEdit params 
+start: 0.9 # start sampling from t = start * 1000
+use_ddim_noise: True # use ddim noise to noise the images. better structure preservation

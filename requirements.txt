@@ -1,0 +1,11 @@
+pillow
+diffusers
+ftfy
+transformers
+opencv-python 
+tqdm
+numpy
+pyyaml
+accelerate
+xformers
+tensorboard

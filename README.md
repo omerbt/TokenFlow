@@ -1,4 +1,3 @@
-
 # TokenFlow: Consistent Diffusion Features for Consistent Video Editing
 ## [<a href="https://diffusion-tokenflow.github.io/" target="_blank">Project Page</a>]
 
@@ -28,7 +27,52 @@ https://github.com/omerbt/TokenFlow/assets/52277000/93dccd63-7e9a-4540-a941-3196
 
 For more see the [project webpage](https://diffusion-tokenflow.github.io).
 
-## CODE IS COMING SOON!
+## Sample results
+
+<td><img src="assets/videos.gif"></td>
+
+## Environment
+```
+conda create -n tokenflow python=3.9
+conda activate tokenflow
+pip install -r requirements.txt
+```
+## Preprocess
+
+Preprocess you video by running using the following command:
+```
+python preprocess.py --data_path <data/myvideo.mp4> \
+                     --inversion_prompt <'' or a string describing the video content>
+```
+Additional arguments:
+```
+                     --save_dir <latents>
+                     --H <video height>
+                     --W <video width>
+                     --sd_version <Stable-Diffusion version>
+                     --steps <number of inversion steps>
+                     --save_steps <number of sampling steps that will be used later for editing>
+                     --n_frames <number of frames>
+                     
+```
+more information on the arguments can be found here.
+
+### Note: 
+The video reconstruction will be saved as inverted.mp4. A good reconstruction is required for successfull editing with our method.
+
+## Editing
+
+- TokenFlow is designed for video for structure-preserving edits. 
+- Our method is built on top of an image editing technique (e.g., Plug-and-Play, ControlNet, etc.) - Therefor, it is important to ensure that the edit works with the chosen base technique. 
+- The LDM decoder may introduce some jitterness, depending on the original video. 
+
+To edit your video, first create a yaml config as in ``configs/config_pnp.yaml``.
+Then run 
+```
+python run_tokenflow_pnp.py
+```
+
+Similarly, if you want to use ControlNet or SDEedit, create a yaml config as in ``config/config_controlnet.yaml`` or ```configs/config_SDEdit.yaml``` and run ```python run_tokenflow_controlnet.py``` or ``python run_tokenflow_SDEdit.py`` respectivly.
 
 
 ## Citation
@@ -40,3 +84,4 @@ For more see the [project webpage](https://diffusion-tokenflow.github.io).
         year={2023}
         }
 ```
+
