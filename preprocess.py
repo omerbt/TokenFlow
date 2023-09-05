@@ -349,6 +349,6 @@ if __name__ == "__main__":
     parser.add_argument('--inversion_prompt', type=str, default='a woman running')
     opt = parser.parse_args()
     video_path = opt.data_path
-    save_video_frames(video_path, img_size=(opt.H, opt.W))
+    save_video_frames(video_path, img_size=(opt.W, opt.H))
     opt.data_path = os.path.join('data', Path(video_path).stem)
     prep(opt)
