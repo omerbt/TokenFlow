@@ -1,10 +1,10 @@
 # TokenFlow: Consistent Diffusion Features for Consistent Video Editing
 ## [<a href="https://diffusion-tokenflow.github.io/" target="_blank">Project Page</a>]
 
-[![arXiv](https://img.shields.io/badge/arXiv-TokenFlow-b31b1b.svg)](https://arxiv.org/abs/)
+[![arXiv](https://img.shields.io/badge/arXiv-TokenFlow-b31b1b.svg)](https://arxiv.org/abs/) [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/weizmannscience/tokenflow)
 ![Pytorch](https://img.shields.io/badge/PyTorch->=1.10.0-Red?logo=pytorch)
 
-[//]: # ([![Hugging Face Spaces]&#40;https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue&#41;]&#40;https://huggingface.co/spaces/weizmannscience/&#41;)
+
 
 [//]: # ([![Replicate]&#40;https://replicate.com/cjwbw/multidiffusion/badge&#41;]&#40;https://replicate.com/cjwbw/multidiffusion&#41;)
 
