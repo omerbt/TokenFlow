@@ -9,3 +9,6 @@ pyyaml
 accelerate
 xformers
 tensorboard
+kornia
+av
+

@@ -1,1 +1,9 @@
 .DS_Store
+tokenflow-results*/**
+venv/
+__pycache__/
+*.pyc
+latents/
+data/**
+!data/wolf.mp4
+!data/woman-running.mp4
