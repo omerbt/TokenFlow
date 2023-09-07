@@ -1,6 +1,5 @@
 import glob
 import os
-import re
 import numpy as np
 import cv2
 from pathlib import Path
@@ -117,8 +116,7 @@ class TokenFlow(nn.Module):
                              Path(config["data_path"]).stem, f'steps_{config["n_inversion_steps"]}')
         latents_path = [x for x in glob.glob(f'{latents_path}/*') if '.' not in Path(x).name]
         
-        pattern = re.compile(".*nframes_([0-9]+)")
-        n_frames = [int(g[1]) for g in [pattern.match(latents_path[i]) for i in range(len(latents_path))] if g]
+        n_frames = [int(os.path.basename(x).split('_')[1]) for x in latents_path if 'nframes_' in x]
 
         latents_path = latents_path[np.argmax(n_frames)]
         self.config["n_frames"] = min(max(n_frames), config["n_frames"])
