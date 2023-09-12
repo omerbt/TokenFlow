@@ -1,21 +1,38 @@
-from pathlib import Path
-from PIL import Image
-import torch
-import yaml
-import math
-
-import torchvision.transforms as T
-from torchvision.io import read_video,write_video
+import glob
 import os
 import random
-import numpy as np
-from torchvision.io import write_video
-# from kornia.filters import joint_bilateral_blur
-from kornia.geometry.transform import remap
-from kornia.utils.grid import create_meshgrid
-import cv2
+from pathlib import Path
 
-def save_video_frames(video_path, img_size=(512,512)):
+import numpy as np
+import torch
+import torchvision.transforms as T
+import yaml
+from PIL import Image
+from torchvision.io import read_video
+from torchvision.io import write_video
+
+
+# from kornia.filters import joint_bilateral_blur
+
+
+def get_latents_path(config):
+    latents_path = os.path.join(config["latents_path"], f'inversion_{config["inversion"]}',
+                                f'sd_{config["sd_version"]}',
+                                Path(config["data_path"]).stem, f'steps_{config["n_inversion_steps"]}')
+    latents_path = [x for x in glob.glob(f'{latents_path}/*') if '.' not in Path(x).name]
+    print(latents_path)
+    n_frames = [int([x for x in latents_path[i].split('/') if 'nframes' in x][0].split('_')[1]) for i in
+                range(len(latents_path))]
+    latents_path = latents_path[np.argmax(n_frames)]
+    config["n_frames"] = min(max(n_frames), config["n_frames"])
+    if config["n_frames"] % config["batch_size"] != 0:
+        # make n_frames divisible by batch_size
+        config["n_frames"] = config["n_frames"] - (config["n_frames"] % config["batch_size"])
+    print("Number of frames: ", config["n_frames"])
+    return os.path.join(latents_path, 'latents')
+
+
+def save_video_frames(video_path, img_size=(512, 512)):
     video, _, _ = read_video(video_path, output_format="TCHW")
     # rotate video -90 degree if video is .mov format. this is a weird bug in torchvision
     if video_path.endswith('.mov'):
@@ -25,8 +42,9 @@ def save_video_frames(video_path, img_size=(512,512)):
     for i in range(len(video)):
         ind = str(i).zfill(5)
         image = T.ToPILImage()(video[i])
-        image_resized = image.resize((img_size),  resample=Image.Resampling.LANCZOS)
+        image_resized = image.resize((img_size), resample=Image.Resampling.LANCZOS)
         image_resized.save(f'data/{video_name}/{ind}.png')
+
 
 def add_dict_to_yaml_file(file_path, key, value):
     data = {}
@@ -42,7 +60,8 @@ def add_dict_to_yaml_file(file_path, key, value):
     # Save the data back to the YAML file
     with open(file_path, 'w') as file:
         yaml.dump(data, file)
-        
+
+
 def isinstance_str(x: object, cls_name: str):
     """
     Checks whether x has any class *named* cls_name in its ancestry.
@@ -54,7 +73,7 @@ def isinstance_str(x: object, cls_name: str):
     for _cls in x.__class__.__mro__:
         if _cls.__name__ == cls_name:
             return True
-    
+
     return False
 
 
@@ -89,7 +108,8 @@ def save_video(raw_frames, save_path, fps=10):
     video_codec = "libx264"
     video_options = {
         "crf": "18",  # Constant Rate Factor (lower value = higher quality, 18 is a good balance)
-        "preset": "slow",  # Encoding preset (e.g., ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
+        "preset": "slow",
+        # Encoding preset (e.g., ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
     }
 
     frames = (raw_frames * 255).to(torch.uint8).cpu().permute(0, 2, 3, 1)
@@ -101,5 +121,3 @@ def seed_everything(seed):
     torch.cuda.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
-
-
