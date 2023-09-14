@@ -266,47 +266,6 @@ class TokenFlow(nn.Module):
 
         return decoded_latents
 
-    def per_frame_sde(self):
-        os.makedirs(f'{self.config["output_path"]}/img_ode', exist_ok=True)
-        noisy_latents = self.scheduler.add_noise(self.latents, self.eps, self.scheduler.timesteps[0])
-        edited_frames = self.vanilla_sample_loop(noisy_latents, torch.arange(self.config["n_frames"]))
-        save_video(edited_frames, f'{self.config["output_path"]}/vanilla_sde.mp4')
-        save_video(edited_frames, f'{self.config["output_path"]}/vanilla_sde_fps20.mp4', fps=20)
-        save_video(edited_frames, f'{self.config["output_path"]}/vanilla_sde_fps30.mp4', fps=30)
-        print('Done!')
-
-    def vanilla_denoise(self, batch, t, text_embed_input):
-        latent_model_input = torch.cat(([batch] * 2))
-        # apply the denoising network
-        noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embed_input)['sample']
-        # perform guidance
-        noise_pred_uncond, noise_pred_cond = noise_pred.chunk(2)
-        noise_pred = noise_pred_uncond + self.config["guidance_scale"] * (noise_pred_cond - noise_pred_uncond)
-
-        # compute the denoising step with the reference model
-        batch = self.scheduler.step(noise_pred, t, batch)['prev_sample']
-        return batch
-
-    def batch_vanilla_denoise_step(self, x, t, text_embed_input):
-        denoised = []
-        for b in range(0, len(x), self.config["batch_size"]):
-            denoised.append(self.vanilla_denoise(x[b:b + self.config["batch_size"]], t, text_embed_input))
-        x = torch.cat(denoised)
-        return x
-
-    @torch.no_grad()
-    def vanilla_sample_loop(self, x, indices):
-        os.makedirs(f'{self.config["output_path"]}/img_ode_vanilla_sde', exist_ok=True)
-        text_embed_input = torch.cat([torch.repeat_interleave(self.text_embeds, config["batch_size"], dim=0)])
-        for i, t in enumerate(tqdm(self.scheduler.timesteps, desc="Sampling")):
-            x = self.batch_vanilla_denoise_step(x, t, text_embed_input)
-
-        decoded_latents = self.decode_latents(x)
-        for i in range(len(decoded_latents)):
-            T.ToPILImage()(decoded_latents[i]).save(f'{self.config["output_path"]}/img_ode_vanilla_sde/%05d.png' % i)
-
-        return decoded_latents
-
 
 def run(config):
     seed_everything(config["seed"])
@@ -323,6 +282,7 @@ if __name__ == '__main__':
         config = yaml.safe_load(f)
 
     config["output_path"] = os.path.join(config["output_path"] + '_sdedit',
+                                         f'inversion_{config["inversion"]}',
                                          Path(config["data_path"]).stem,
                                          config["prompt"][:240],
                                          f'batch_size_{str(config["batch_size"])}',

@@ -19,8 +19,9 @@ def get_latents_path(config):
     latents_path = os.path.join(config["latents_path"], f'inversion_{config["inversion"]}',
                                 f'sd_{config["sd_version"]}',
                                 Path(config["data_path"]).stem, f'steps_{config["n_inversion_steps"]}')
+    print(f'Loading latents from {latents_path}')
     latents_path = [x for x in glob.glob(f'{latents_path}/*') if '.' not in Path(x).name]
-    print(latents_path)
+
     n_frames = [int([x for x in latents_path[i].split('/') if 'nframes' in x][0].split('_')[1]) for i in
                 range(len(latents_path))]
     latents_path = latents_path[np.argmax(n_frames)]

@@ -1,22 +1,20 @@
+from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler
+from diffusers.utils.torch_utils import randn_tensor
 from transformers import CLIPTextModel, CLIPTokenizer, logging
-from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler, UniPCMultistepScheduler, \
-    DPMSolverMultistepScheduler
-from diffusers.utils import randn_tensor
 
 # suppress partial model loading warning
 logging.set_verbosity_error()
 import inspect
-import os
-from tqdm import tqdm, trange
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import argparse
 from torchvision.io import write_video
-from pathlib import Path
 from util import *
 import torchvision.transforms as T
 from PIL import Image
-
+import cv2
+import numpy as np
 
 def get_timesteps(scheduler, num_inference_steps, strength, device):
     # get the original timestep using init_timestep
@@ -187,6 +185,8 @@ class Preprocess(nn.Module):
 
     @torch.no_grad()
     def decode_latents(self, latents):
+        if latents is None:
+            return None
         decoded = []
         batch_size = 8
         for b in range(0, latents.shape[0], batch_size):
@@ -263,10 +263,7 @@ class Preprocess(nn.Module):
 
         variance_noise_shape = (
             num_inversion_steps,
-            latent_frames.shape[0],
-            self.unet.config.in_channels,
-            self.unet.sample_size,
-            self.unet.sample_size)
+            *latent_frames.shape)
         x0 = latent_frames
 
         t_to_idx = {int(v): k for k, v in enumerate(timesteps)}
@@ -415,7 +412,7 @@ class Preprocess(nn.Module):
                         timesteps_to_save,
                         inversion_prompt='',
                         skip_steps=20,
-                        inversion_type='ddim', eta=1.0):
+                        inversion_type='ddim', eta=1.0, reconstruction=False):
         self.scheduler.set_timesteps(num_steps)
 
         latent_frames = self.latents
@@ -428,7 +425,10 @@ class Preprocess(nn.Module):
                                              batch_size=batch_size,
                                              save_latents=True,
                                              timesteps_to_save=timesteps_to_save)
-            latent_reconstruction = self.ddim_sample(inverted_x, cond, batch_size=batch_size)
+            if reconstruction:
+                latent_reconstruction = self.ddim_sample(inverted_x, cond, batch_size=batch_size)
+            else:
+                latent_reconstruction = None
         elif inversion_type == 'ddpm':
             inverted_x, zs = self.ddpm_inversion(cond,
                                                  latent_frames,
@@ -439,15 +439,18 @@ class Preprocess(nn.Module):
                                                  eta=eta,
                                                  skip_steps=skip_steps)
             cond = self.encode_text(inversion_prompt)
-            latent_reconstruction = self.ddpm_sample(init_latents=inverted_x,
-                                                     cond=cond, batch_size=batch_size,
-                                                     num_inversion_steps=num_steps, skip_steps=skip_steps,
-                                                     eta=eta, zs_all=zs)
+            if reconstruction:
+                latent_reconstruction = self.ddpm_sample(init_latents=inverted_x,
+                                                         cond=cond, batch_size=batch_size,
+                                                         num_inversion_steps=num_steps, skip_steps=skip_steps,
+                                                         eta=eta, zs_all=zs)
+            else:
+                latent_reconstruction = None
+
         else:
             raise NotImplementedError()
 
         rgb_reconstruction = self.decode_latents(latent_reconstruction)
-
         return rgb_reconstruction
 
 
@@ -491,15 +494,17 @@ def prep(opt):
         timesteps_to_save=timesteps_to_save,
         inversion_prompt=opt.inversion_prompt,
         inversion_type=opt.inversion,
-        skip_steps=opt.skip_steps
+        skip_steps=opt.skip_steps,
+        reconstruction=opt.reconstruct
     )
 
     if not os.path.isdir(os.path.join(save_path, f'frames')):
         os.mkdir(os.path.join(save_path, f'frames'))
-    for i, frame in enumerate(recon_frames):
-        T.ToPILImage()(frame).save(os.path.join(save_path, f'frames', f'{i:05d}.png'))
-    frames = (recon_frames * 255).to(torch.uint8).cpu().permute(0, 2, 3, 1)
-    write_video(os.path.join(save_path, f'inverted_{opt.inversion}.mp4'), frames, fps=10)
+    if recon_frames is not None:
+        for i, frame in enumerate(recon_frames):
+            T.ToPILImage()(frame).save(os.path.join(save_path, f'frames', f'{i:05d}.png'))
+        frames = (recon_frames * 255).to(torch.uint8).cpu().permute(0, 2, 3, 1)
+        write_video(os.path.join(save_path, f'inverted_{opt.inversion}.mp4'), frames, fps=10)
 
 
 def compute_noise(scheduler, prev_latents, latents, timestep, noise_pred, eta):
@@ -549,16 +554,17 @@ if __name__ == "__main__":
     parser.add_argument('--save_dir', type=str, default='latents')
     parser.add_argument('--sd_version', type=str, default='2.1', choices=['1.5', '2.0', '2.1', 'ControlNet', 'depth'],
                         help="stable diffusion version")
+    parser.add_argument('--reconstruct', default=False, action='store_true')
     parser.add_argument('--steps', type=int, default=50)
     parser.add_argument('--batch_size', type=int, default=40)
     parser.add_argument('--save_steps', type=int, default=50)
     parser.add_argument('--n_frames', type=int, default=40)
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--inversion', type=str, default='ddpm', choices=['ddim', 'ddpm'])
-    parser.add_argument('--skip_steps', type=int, default=20)
+    parser.add_argument('--skip_steps', type=int, default=5)
 
     opt = parser.parse_args()
     video_path = opt.data_path
-    save_video_frames(video_path, img_size=(opt.H, opt.W))
+    save_video_frames(video_path, img_size=(opt.W, opt.H))
     opt.data_path = os.path.join('data', Path(video_path).stem)
     prep(opt)
