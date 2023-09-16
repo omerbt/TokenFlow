@@ -1,10 +1,10 @@
 # TokenFlow: Consistent Diffusion Features for Consistent Video Editing
 ## [<a href="https://diffusion-tokenflow.github.io/" target="_blank">Project Page</a>]
 
-[![arXiv](https://img.shields.io/badge/arXiv-TokenFlow-b31b1b.svg)](https://arxiv.org/abs/)
+[![arXiv](https://img.shields.io/badge/arXiv-TokenFlow-b31b1b.svg)](https://arxiv.org/abs/2307.10373) [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/weizmannscience/tokenflow)
 ![Pytorch](https://img.shields.io/badge/PyTorch->=1.10.0-Red?logo=pytorch)
 
-[//]: # ([![Hugging Face Spaces]&#40;https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue&#41;]&#40;https://huggingface.co/spaces/weizmannscience/&#41;)
+
 
 [//]: # ([![Replicate]&#40;https://replicate.com/cjwbw/multidiffusion/badge&#41;]&#40;https://replicate.com/cjwbw/multidiffusion&#41;)
 
@@ -75,7 +75,7 @@ The video reconstruction will be saved as inverted.mp4. A good reconstruction is
 ## Editing
 
 - TokenFlow is designed for video for structure-preserving edits. 
-- Our method is built on top of an image editing technique (e.g., Plug-and-Play, ControlNet, etc.) - Therefor, it is important to ensure that the edit works with the chosen base technique. 
+- Our method is built on top of an image editing technique (e.g., Plug-and-Play, ControlNet, etc.) - therefore, it is important to ensure that the edit works with the chosen base technique. 
 - The LDM decoder may introduce some jitterness, depending on the original video. 
 
 To edit your video, first create a yaml config as in ``configs/config_pnp.yaml``.
