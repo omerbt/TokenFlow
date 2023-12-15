@@ -264,7 +264,7 @@ class TokenFlow(nn.Module):
     def sample_loop(self, x, indices):
         os.makedirs(f'{self.config["output_path"]}/img_ode', exist_ok=True)
         for i, t in enumerate(tqdm(self.scheduler.timesteps, desc="Sampling")):
-                x = self.batched_denoise_step(x, t, indices)
+            x = self.batched_denoise_step(x, t, indices)
         
         decoded_latents = self.decode_latents(x)
         for i in range(len(decoded_latents)):
