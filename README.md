@@ -32,11 +32,23 @@ For more see the [project webpage](https://diffusion-tokenflow.github.io).
 <td><img src="assets/videos.gif"></td>
 
 ## Environment
+
+Using conda
 ```
 conda create -n tokenflow python=3.9
 conda activate tokenflow
 pip install -r requirements.txt
 ```
+
+Using cpython Windows (powershell)
+```powershell
+python -m pip install virtualenv
+python -m virtualenv venv
+venv/Scripts/activate.ps1
+pip install -r requirements.txt
+pip install -r requirements-torch.txt
+```
+
 ## Preprocess
 
 Preprocess you video by running using the following command:
