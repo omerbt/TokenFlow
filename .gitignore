@@ -1,1 +1,10 @@
 .DS_Store
+__pycache__/
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.pth
