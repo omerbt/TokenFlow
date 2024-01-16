@@ -115,7 +115,9 @@ class TokenFlow(nn.Module):
         latents_path = os.path.join(config["latents_path"], f'sd_{config["sd_version"]}',
                              Path(config["data_path"]).stem, f'steps_{config["n_inversion_steps"]}')
         latents_path = [x for x in glob.glob(f'{latents_path}/*') if '.' not in Path(x).name]
-        n_frames = [int([x for x in latents_path[i].split('/') if 'nframes' in x][0].split('_')[1]) for i in range(len(latents_path))]
+        
+        n_frames = [int(os.path.basename(x).split('_')[1]) for x in latents_path if 'nframes_' in x]
+
         latents_path = latents_path[np.argmax(n_frames)]
         self.config["n_frames"] = min(max(n_frames), config["n_frames"])
         if self.config["n_frames"] % self.config["batch_size"] != 0:
