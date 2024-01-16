@@ -1,4 +1,4 @@
-# TokenFlow: Consistent Diffusion Features for Consistent Video Editing
+# TokenFlow: Consistent Diffusion Features for Consistent Video Editing (ICLR 2024)
 ## [<a href="https://diffusion-tokenflow.github.io/" target="_blank">Project Page</a>]
 
 [![arXiv](https://img.shields.io/badge/arXiv-TokenFlow-b31b1b.svg)](https://arxiv.org/abs/2307.10373) [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/weizmannscience/tokenflow)
