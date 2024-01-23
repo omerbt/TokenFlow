@@ -39,7 +39,6 @@ class Predictor(BasePredictor):
         config = argparse.Namespace(
             sd_version=self.sd_version,
             cache_dir="model_cache",
-            local_files_only=False,
             device=self.device,
         )
         model_key = "stabilityai/stable-diffusion-2-1-base"
@@ -47,7 +46,6 @@ class Predictor(BasePredictor):
             model_key,
             subfolder="scheduler",
             cache_dir=config.cache_dir,
-            local_files_only=config.local_files_only,
         )
         self.model = Preprocess(self.device, config)
         self.editor = TokenFlow(vars(config))
@@ -127,18 +125,14 @@ class Predictor(BasePredictor):
         )
 
         os.makedirs(os.path.join(experiment_dir, "latents"))
-        add_dict_to_yaml_file(
-            os.path.join(experiment_dir, "inversion_prompts.yaml"),
-            Path(opt.data_path).stem,
-            opt.inversion_prompt,
+        paths, frames, max_frames = get_data(opt.data_path, opt.n_frames, self.device)
+        # encode to latents
+        latents = (
+            self.model.encode_imgs(frames, deterministic=True)
+            .to(torch.float16)
+            .to(self.device)
         )
-        # save inversion prompt in a txt file
-        with open(os.path.join(experiment_dir, "inversion_prompt.txt"), "w") as f:
-            f.write(opt.inversion_prompt)
-
-        self.model.paths, self.model.frames, self.model.latents = self.model.get_data(
-            opt.data_path, opt.n_frames
-        )
+        self.model.paths, self.model.frames, self.model.latents = paths, frames, latents
         recon_frames = self.model.extract_latents(
             num_steps=opt.steps,
             save_path=experiment_dir,
@@ -147,55 +141,42 @@ class Predictor(BasePredictor):
             inversion_prompt=opt.inversion_prompt,
         )
 
-        os.mkdir(os.path.join(experiment_dir, f"invert_frames"))
+        os.mkdir(os.path.join(experiment_dir, "invert_frames"))
         for i, frame in enumerate(recon_frames):
             T.ToPILImage()(frame).save(
                 os.path.join(experiment_dir, f"invert_frames", f"{i:05d}.png")
             )
-        frames = (recon_frames * 255).to(torch.uint8).cpu().permute(0, 2, 3, 1)
-        write_video(os.path.join(experiment_dir, "inverted.mp4"), frames, fps=10)
         print("Inversion completed!")
 
         output_dir = os.path.join(experiment_dir, "output_dir")
         os.makedirs(output_dir)
+        batch_size = 8
+        if not max_frames % batch_size == 0:
+            # make n_frames divisible by batch_size
+            max_frames = max_frames - (max_frames % batch_size)
+        print("Number of frames for editing: ", max_frames)
         tokenflow_pnp_config = {
             "seed": seed,
             "device": self.device,
+            "inversion_prompt": inversion_prompt,
             "output_path": output_dir,
             "data_path": opt.data_path,
             "latents_path": os.path.join(experiment_dir, "latents"),
             "n_inversion_steps": num_inversion_steps,
-            "n_frames": n_frames,
+            "n_frames": max_frames,
             "sd_version": self.sd_version,
             "guidance_scale": guidance_scale,
             "n_timesteps": num_diffusion_steps,
             "prompt": diffusion_prompt,
             "negative_prompt": negative_diffusion_prompt,
-            "batch_size": 8,
+            "batch_size": batch_size,
             "pnp_attn_t": 0.5,
             "pnp_f_t": 0.8,
         }
-        self.editor.scheduler.set_timesteps(
-            tokenflow_pnp_config["n_timesteps"], device=self.device
-        )
-        self.editor.load_data(tokenflow_pnp_config)
 
-        decoded = self.editor.decode_latents(self.editor.latents)
-        save_video(decoded, os.path.join(experiment_dir, "vae_recon_10.mp4"), fps=10)
+        self.editor.config_editor(tokenflow_pnp_config)
+        edited_frames = self.editor.edit_video()
 
-        pnp_f_t = int(
-            tokenflow_pnp_config["n_timesteps"] * tokenflow_pnp_config["pnp_f_t"]
-        )
-        pnp_attn_t = int(
-            tokenflow_pnp_config["n_timesteps"] * tokenflow_pnp_config["pnp_attn_t"]
-        )
-        self.editor.init_method(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
-        noisy_latents = self.editor.scheduler.add_noise(
-            self.editor.latents, self.editor.eps, self.editor.scheduler.timesteps[0]
-        )
-        edited_frames = self.editor.sample_loop(
-            noisy_latents, torch.arange(tokenflow_pnp_config["n_frames"])
-        )
         out_path = "/tmp/out.mp4"
         save_video(edited_frames, out_path, fps=fps)
         print("Done!")
@@ -219,11 +200,28 @@ def save_intput_video_frames(video_path, video_frames_dir, img_size=(512, 512)):
 def get_timesteps(scheduler, num_inference_steps, strength):
     # get the original timestep using init_timestep
     init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
-
     t_start = max(num_inference_steps - init_timestep, 0)
     timesteps = scheduler.timesteps[t_start:]
-
     return timesteps, num_inference_steps - t_start
+
+
+def get_data(frames_path, n_frames, device):
+    # load frames
+    total_frames = len(os.listdir(frames_path))
+    max_frames = min(total_frames, n_frames)
+    paths = [f"{frames_path}/%05d.png" % i for i in range(max_frames)]
+    frames = [Image.open(path).convert("RGB") for path in paths]
+    if frames[0].size[0] == frames[0].size[1]:
+        frames = [
+            frame.resize((512, 512), resample=Image.Resampling.LANCZOS)
+            for frame in frames
+        ]
+    frames = (
+        torch.stack([T.ToTensor()(frame) for frame in frames])
+        .to(torch.float16)
+        .to(device)
+    )
+    return paths, frames, max_frames
 
 
 class Preprocess(nn.Module):
@@ -257,13 +255,11 @@ class Preprocess(nn.Module):
             revision="fp16",
             torch_dtype=torch.float16,
             cache_dir=opt.cache_dir,
-            local_files_only=opt.local_files_only,
         ).to(self.device)
         self.tokenizer = CLIPTokenizer.from_pretrained(
             model_key,
             subfolder="tokenizer",
             cache_dir=opt.cache_dir,
-            local_files_only=opt.local_files_only,
         )
         self.text_encoder = CLIPTextModel.from_pretrained(
             model_key,
@@ -271,7 +267,6 @@ class Preprocess(nn.Module):
             revision="fp16",
             torch_dtype=torch.float16,
             cache_dir=opt.cache_dir,
-            local_files_only=opt.local_files_only,
         ).to(self.device)
         self.unet = UNet2DConditionModel.from_pretrained(
             model_key,
@@ -279,25 +274,19 @@ class Preprocess(nn.Module):
             revision="fp16",
             torch_dtype=torch.float16,
             cache_dir=opt.cache_dir,
-            local_files_only=opt.local_files_only,
         ).to(self.device)
-        # self.paths, self.frames, self.latents = self.get_data(
-        #     opt.data_path, opt.n_frames
-        # )
 
         if self.sd_version == "ControlNet":
             controlnet = ControlNetModel.from_pretrained(
                 "lllyasviel/sd-controlnet-canny",
                 torch_dtype=torch.float16,
                 cache_dir=opt.cache_dir,
-                local_files_only=opt.local_files_only,
             ).to(self.device)
             control_pipe = StableDiffusionControlNetPipeline.from_pretrained(
                 "runwayml/stable-diffusion-v1-5",
                 controlnet=controlnet,
                 torch_dtype=torch.float16,
                 cache_dir=opt.cache_dir,
-                local_files_only=opt.local_files_only,
             ).to(self.device)
             self.unet = control_pipe.unet
             self.controlnet = control_pipe.controlnet
@@ -308,7 +297,6 @@ class Preprocess(nn.Module):
             model_key,
             subfolder="scheduler",
             cache_dir=opt.cache_dir,
-            local_files_only=opt.local_files_only,
         )
         print(f"[INFO] loaded stable diffusion!")
 
@@ -433,31 +421,6 @@ class Preprocess(nn.Module):
             latents.append(latent * 0.18215)
         latents = torch.cat(latents)
         return latents
-
-    def get_data(self, frames_path, n_frames):
-        # load frames
-        paths = [f"{frames_path}/%05d.png" % i for i in range(n_frames)]
-        if not os.path.exists(paths[0]):
-            paths = [f"{frames_path}/%05d.jpg" % i for i in range(n_frames)]
-        self.paths = paths
-        frames = [Image.open(path).convert("RGB") for path in paths]
-        if frames[0].size[0] == frames[0].size[1]:
-            frames = [
-                frame.resize((512, 512), resample=Image.Resampling.LANCZOS)
-                for frame in frames
-            ]
-        frames = (
-            torch.stack([T.ToTensor()(frame) for frame in frames])
-            .to(torch.float16)
-            .to(self.device)
-        )
-        # encode to latents
-        latents = (
-            self.encode_imgs(frames, deterministic=True)
-            .to(torch.float16)
-            .to(self.device)
-        )
-        return paths, frames, latents
 
     @torch.no_grad()
     def ddim_inversion(
@@ -604,12 +567,8 @@ class TokenFlow(nn.Module):
         print("Loading SD model")
 
         pipe = StableDiffusionPipeline.from_pretrained(
-            model_key,
-            torch_dtype=torch.float16,
-            cache_dir=config["cache_dir"],
-            local_files_only=config["local_files_only"],
-        ).to(config["device"])
-        # pipe.enable_xformers_memory_efficient_attention()
+            model_key, torch_dtype=torch.float16, cache_dir=config["cache_dir"]
+        ).to("cuda")
 
         self.vae = pipe.vae
         self.tokenizer = pipe.tokenizer
@@ -617,26 +576,25 @@ class TokenFlow(nn.Module):
         self.unet = pipe.unet
 
         self.scheduler = DDIMScheduler.from_pretrained(
-            model_key,
-            subfolder="scheduler",
-            cache_dir=config["cache_dir"],
-            local_files_only=config["local_files_only"],
+            model_key, subfolder="scheduler", cache_dir=config["cache_dir"]
         )
         print("SD model loaded")
 
-    def load_data(self, config):
+    def config_editor(self, config):
         self.config = config
+        self.scheduler.set_timesteps(self.config["n_timesteps"], device=self.device)
+
         # data
-        self.latents_path = config["latents_path"]
+        self.latents_path = self.config["latents_path"]
         # load frames
-        self.paths, self.frames, self.latents, self.eps = self.get_data(config)
+        self.paths, self.frames, self.latents, self.eps = self.get_data()
         if self.sd_version == "depth":
             self.depth_maps = self.prepare_depth_maps()
 
         self.text_embeds = self.get_text_embeds(
             config["prompt"], config["negative_prompt"]
         )
-        pnp_inversion_prompt = self.get_pnp_inversion_prompt()
+        pnp_inversion_prompt = config["inversion_prompt"]
         self.pnp_guidance_embeds = self.get_text_embeds(
             pnp_inversion_prompt, pnp_inversion_prompt
         ).chunk(2)[0]
@@ -736,17 +694,12 @@ class TokenFlow(nn.Module):
         imgs = (imgs / 2 + 0.5).clamp(0, 1)
         return imgs
 
-    def get_data(self, config):
+    def get_data(self):
         # load frames
         paths = [
-            os.path.join(config["data_path"], "%05d.jpg" % idx)
+            os.path.join(self.config["data_path"], "%05d.png" % idx)
             for idx in range(self.config["n_frames"])
         ]
-        if not os.path.exists(paths[0]):
-            paths = [
-                os.path.join(config["data_path"], "%05d.png" % idx)
-                for idx in range(self.config["n_frames"])
-            ]
         frames = [
             Image.open(paths[idx]).convert("RGB")
             for idx in range(self.config["n_frames"])
@@ -761,7 +714,10 @@ class TokenFlow(nn.Module):
             .to(torch.float16)
             .to(self.device)
         )
-        save_video(frames, f'{self.config["output_path"]}/input_fps10.mp4', fps=10)
+        # save_video(frames, f'{self.config["output_path"]}/input_fps10.mp4', fps=10)
+        # save_video(frames, f'{self.config["output_path"]}/input_fps20.mp4', fps=20)
+        # save_video(frames, f'{self.config["output_path"]}/input_fps30.mp4', fps=30)
+        # encode to latents
         latents = (
             self.encode_imgs(frames, deterministic=True)
             .to(torch.float16)
@@ -856,15 +812,36 @@ class TokenFlow(nn.Module):
         register_conv_injection(self, self.conv_injection_timesteps)
         set_tokenflow(self.unet)
 
+    # def save_vae_recon(self):
+    #     os.makedirs(f'{self.config["output_path"]}/vae_recon', exist_ok=True)
+    #     decoded = self.decode_latents(self.latents)
+    #     for i in range(len(decoded)):
+    #         T.ToPILImage()(decoded[i]).save(f'{self.config["output_path"]}/vae_recon/%05d.png' % i)
+    #     save_video(decoded, f'{self.config["output_path"]}/vae_recon_10.mp4', fps=10)
+    #     save_video(decoded, f'{self.config["output_path"]}/vae_recon_20.mp4', fps=20)
+    #     save_video(decoded, f'{self.config["output_path"]}/vae_recon_30.mp4', fps=30)
+
+    def edit_video(self):
+        # os.makedirs(f'{self.config["output_path"]}/img_ode', exist_ok=True)
+        # self.save_vae_recon()
+        pnp_f_t = int(self.config["n_timesteps"] * self.config["pnp_f_t"])
+        pnp_attn_t = int(self.config["n_timesteps"] * self.config["pnp_attn_t"])
+        self.init_method(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
+        noisy_latents = self.scheduler.add_noise(
+            self.latents, self.eps, self.scheduler.timesteps[0]
+        )
+        edited_frames = self.sample_loop(
+            noisy_latents, torch.arange(self.config["n_frames"])
+        )
+        return edited_frames
+
     def sample_loop(self, x, indices):
-        os.makedirs(f'{self.config["output_path"]}/img_ode', exist_ok=True)
+        # os.makedirs(f'{self.config["output_path"]}/img_ode', exist_ok=True)
         for i, t in enumerate(tqdm(self.scheduler.timesteps, desc="Sampling")):
             x = self.batched_denoise_step(x, t, indices)
 
         decoded_latents = self.decode_latents(x)
-        for i in range(len(decoded_latents)):
-            T.ToPILImage()(decoded_latents[i]).save(
-                f'{self.config["output_path"]}/img_ode/%05d.png' % i
-            )
+        # for i in range(len(decoded_latents)):
+        #     T.ToPILImage()(decoded_latents[i]).save(f'{self.config["output_path"]}/img_ode/%05d.png' % i)
 
         return decoded_latents
