@@ -62,7 +62,7 @@ The video reconstruction will be saved as inverted.mp4. A good reconstruction is
 
 ## Editing
 
-- TokenFlow is designed for video for structure-preserving edits. 
+- TokenFlow is designed for structure-preserving edits. 
 - Our method is built on top of an image editing technique (e.g., Plug-and-Play, ControlNet, etc.) - therefore, it is important to ensure that the edit works with the chosen base technique. 
 - The LDM decoder may introduce some jitterness, depending on the original video. 
 
