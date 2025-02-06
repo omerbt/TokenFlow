@@ -1,0 +1,24 @@
+# Configuration for Cog ⚙️
+# Reference: https://github.com/replicate/cog/blob/main/docs/yaml.md
+
+build:
+  # set to true if your model requires a GPU
+  gpu: true
+  system_packages:
+    - "libgl1-mesa-glx"
+    - "libglib2.0-0"
+  python_version: "3.11"
+  python_packages:
+    - torch==2.0.1
+    - torchvision==0.15.2
+    - pillow==10.2.0
+    - diffusers==0.20.0
+    - ftfy==6.1.3
+    - transformers==4.36.2
+    - opencv-python==4.9.0.80
+    - tqdm==4.66.1
+    - pyyaml==6.0.1
+    - accelerate==0.26.1
+    - av==11.0.0
+    - kornia==0.7.1
+predict: "predict.py:Predictor"
